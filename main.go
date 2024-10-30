@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -64,21 +65,55 @@ func (r *Repository) GetBooks(context *fiber.Ctx) error {
 	return nil
 }
 
-func (r *Repository) GetBookById(context *fiber.Ctx) error {
+func (r *Repository) DeleteBook(context *fiber.Ctx) error {
 
-	bookModels := &[]models.Books{}
+	bookModel := &[]models.Books{}
+	id := context.Params("id")
 
-	err := r.DB.Find(bookModels).Error
+	if id == "" {
+		context.Status(http.StatusInternalServerError).JSON(
+			&fiber.Map{"message": "id cannot be empty"})
+		return nil
+	}
+
+	err := r.DB.Delete(bookModel, id).Error
 
 	if err != nil {
-		context.Status(http.StatusUnprocessableEntity).JSON(
-			&fiber.Map{"message": "could not get books"})
+		context.Status(http.StatusBadRequest).JSON(
+			&fiber.Map{"message": "could not delete book"})
 		return err
 	}
 
 	context.Status(http.StatusOK).JSON(&fiber.Map{
-		"message": "books fetched successfully",
-		"data":    bookModels})
+		"message": "books deleted successfully"})
+
+	return nil
+
+}
+
+func (r *Repository) GetBookById(context *fiber.Ctx) error {
+
+	id := context.Params("id")
+	bookModel := &models.Books{}
+
+	if id == "" {
+		context.Status(http.StatusInternalServerError).JSON(
+			&fiber.Map{"message": "id cannot be empty"})
+		return nil
+	}
+	fmt.Println("Id is ", id)
+
+	err := r.DB.Where("id= ?",id).First(bookModel).Error
+
+	if err != nil {
+		context.Status(http.StatusBadRequest).JSON(
+			&fiber.Map{"message": "could not get a book"})
+		return err
+	}
+
+	context.Status(http.StatusOK).JSON(&fiber.Map{
+		"message": "book fetched successfully",
+		"data":    bookModel})
 
 	return nil
 
@@ -115,6 +150,11 @@ func main() {
 
 	if err != nil {
 		log.Fatal("could not load the database")
+	}
+
+	err = models.MigrateBooks(db)
+	if err != nil {
+		log.Fatal("could not migrate the db")
 	}
 
 	r := Repository{
